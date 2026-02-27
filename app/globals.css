@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+--bg: #f8fafc;
+--surface: #ffffff;
+--text: #0f172a;
+--muted: #475569;
+--brand: #0f766e;
+--brand-soft: #ccfbf1;
+}
+
+html {
+scroll-behavior: smooth;
+}
+
+body {
+background: var(--bg);
+color: var(--text);
+font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+font-family: var(--font-space), var(--font-inter), Arial, sans-serif;
+}
+
+.reveal {
+opacity: 0;
+transform: translateY(18px);
+transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.reveal.is-visible {
+opacity: 1;
+transform: translateY(0);
+}
+
+.soft-ring {
+box-shadow: 0 0 0 6px rgba(15, 118, 110, 0.08);
+}
