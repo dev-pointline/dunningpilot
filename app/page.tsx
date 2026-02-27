@@ -1,278 +1,318 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
+type WaitlistApiResponse = {
+success?: boolean;
+message?: string;
+duplicate?: boolean;
+error?: {
+code?: string;
+message?: string;
+};
+};
 
 type WaitlistFormProps = {
 source: string;
-buttonLabel?: string;
-onSuccess?: () => void;
+buttonLabel: string;
+onJoined: () => void;
 className?: string;
 };
 
-const integrations = [
+type ExitIntentModalProps = {
+isOpen: boolean;
+onClose: () => void;
+onJoined: () => void;
+};
+
+const MOBILE_EXIT_SCROLL_THRESHOLD = 0.62;
+
+const integrationBadges = [
 "QuickBooks (planned)",
 "Xero (planned)",
 "Resend (planned)",
 "Paddle (planned)",
-"Supabase (planned)",
+"Supabase (planned)"
 ];
 
 const painPoints = [
 {
 icon: "⏱️",
-title: "Reminder work steals your week",
-body: "Agency and bookkeeping teams report spending 3–8 hours each week manually chasing invoices. That is time pulled from client delivery, sales, and strategic work.",
+title: "3–8 hours/week lost to manual chasing",
+description:
+"Research for this pipeline repeatedly surfaced a 3–8 hour weekly burden for invoice follow-up in small service teams. Those hours come from repetitive reminders, spreadsheet checks, and inbox triage."
 },
 {
 icon: "💸",
-title: "Late payments make cash unpredictable",
-body: "Validation research for this idea used a working assumption that ~22% of invoices can slip late in SMB service workflows. When receivables drift, hiring and payroll planning get tighter than they should be.",
+title: "Overdue invoices create cash-flow anxiety",
+description:
+"Earlier-stage modeling used a working assumption that roughly 22% of invoices can slip late in SMB service workflows. Even when revenue is booked, delayed cash makes payroll and hiring decisions harder."
 },
 {
 icon: "😬",
-title: "Tone decisions are stressful",
-body: "Every reminder has relationship risk: too soft gets ignored, too firm can hurt trust. Teams end up rewriting the same email thread over and over to avoid awkward client friction.",
-},
+title: "Tone pressure damages confidence",
+description:
+"Teams often send 2–4 follow-ups per overdue invoice, and every message is a relationship decision. Too soft gets ignored; too sharp can strain clients you want to keep."
+}
 ];
 
-const beforeAfter = [
+const comparisons = [
 {
 before:
-"Before: You manually scan aging invoices, draft reminders from scratch, and lose hours every week.",
+"Before: You manually review aging reports, rewrite reminders, and context-switch across tools.",
 after:
-"After: DunningPilot is designed to generate follow-up drafts and schedules so you can review quickly and move on.",
+"After: DunningPilot is designed to generate structured follow-up drafts and queue them for quick approval."
 },
 {
 before:
-"Before: Cash flow forecasts are based on hope because late invoices are hard to prioritize.",
+"Before: Your team treats every overdue invoice the same, so high-risk balances can get missed.",
 after:
-"After: DunningPilot is built to rank overdue invoices by urgency so your team can focus on the most important follow-ups first.",
+"After: DunningPilot is built to prioritize by urgency so you can focus effort where cash risk is highest."
 },
 {
 before:
-"Before: Every client message is a tone gamble that can strain good relationships.",
+"Before: Message tone changes from person to person, creating inconsistency and stress.",
 after:
-"After: DunningPilot is designed with tone guardrails and escalation steps so you can stay polite, clear, and consistent.",
-},
+"After: DunningPilot is designed with tone guardrails and escalation paths, so communication stays clear and professional."
+}
 ];
 
 const features = [
 {
 icon: "🧠",
-title: "Smart follow-up sequences",
-body: "Create reminder timelines based on invoice age, amount, and context. Built so you can stop writing repetitive emails and keep a consistent process.",
+title: "Context-aware reminder drafting",
+body:
+"Build reminder sequences using invoice age, amount, and prior reply context. Designed so you can stop writing repetitive emails from scratch."
 },
 {
 icon: "🎯",
-title: "Reply-intent triage",
-body: "Incoming responses are organized into likely buckets like promise-to-pay, dispute, or delay. Designed so you can act faster instead of sorting inbox noise manually.",
+title: "Reply-intent sorting",
+body:
+"Incoming responses are grouped into likely intents such as promise-to-pay, dispute, or delay. Built so you can respond faster without digging through noisy inbox threads."
 },
 {
 icon: "🛡️",
-title: "Tone guardrails",
-body: "Choose a communication style that matches your brand and client relationships. Built to keep follow-ups firm but respectful as invoices age.",
+title: "Tone and escalation controls",
+body:
+"Set the communication style your brand should follow as invoices age. Designed so you can stay firm without sounding aggressive."
 },
 {
 icon: "📊",
-title: "Cash impact view",
-body: "Track overdue balance by bucket and follow-up stage in one place. Designed to give founders and finance leads a clearer view of cash risk.",
+title: "Cash-risk visibility",
+body:
+"See overdue balances by stage and priority in one clear view. Built so founders and finance leads can plan with less guesswork."
 },
 {
-icon: "🔁",
+icon: "✅",
 title: "Approval-first automation",
-body: "Keep manual approval where it matters and automate repetitive steps where it doesn’t. Built so you can stay in control without doing everything by hand.",
+body:
+"Automate repetitive steps while keeping review checkpoints where they matter most. Designed so you stay in control while reducing admin load."
 },
 {
 icon: "✨",
-title: "Client-ready timeline snapshots",
-body: "Generate clean activity logs that show what was sent and when. Designed so you can quickly explain status to clients, partners, or internal teams.",
-},
+title: "Client-ready activity summaries",
+body:
+"Generate clean follow-up timelines for internal reviews or client reporting. Built so you can explain receivables status without assembling reports manually."
+}
 ];
 
-const howItWorks = [
+const workflowSteps = [
 {
-step: "01",
-title: "Upload invoices",
-body: "Import a CSV or planned accounting integration and map fields in seconds.",
-visual: "📥 Upload icon with a short checklist",
+step: "1",
+title: "Import invoices",
+detail:
+"Upload CSV or connect a planned integration to pull invoice data in seconds.",
+visual: "📥 Upload card"
 },
 {
-step: "02",
-title: "Set your follow-up style",
-body: "Pick tone, timing, and escalation rules that match your client relationships.",
-visual: "🎚️ Sliders for tone and cadence",
+step: "2",
+title: "Pick your follow-up style",
+detail:
+"Choose timing, tone, and escalation preferences that fit your customer relationships.",
+visual: "🎚️ Tone + cadence controls"
 },
 {
-step: "03",
-title: "Review and run",
-body: "Approve drafts, send reminders, and track outcomes from one clear timeline.",
-visual: "✅ Timeline with status chips",
-},
+step: "3",
+title: "Approve and send",
+detail:
+"Review drafts, send reminders, and track replies from a single timeline.",
+visual: "✅ Timeline with status tags"
+}
 ];
 
 const useCases = [
 {
 persona: "Agency Founder",
-context: "Runs a 12-person performance marketing agency with monthly retainers.",
+context:
+"A founder running a 10-person creative agency with recurring retainers.",
 narrative:
-"Here’s how this founder would use DunningPilot: upload monthly invoices, approve reminder sequences in one pass, and keep account managers focused on delivery. The main win is reclaiming weekly admin time while maintaining a professional tone.",
+"Here’s how this founder would use DunningPilot: upload monthly invoices, review follow-up drafts once, then let reminders run with approval checkpoints. The main benefit is reclaiming time for delivery and sales, instead of chasing receivables manually."
 },
 {
 persona: "Fractional CFO",
-context: "Supports multiple service businesses that need tighter cash planning.",
+context:
+"A finance consultant supporting multiple service businesses each month.",
 narrative:
-"Here’s how this CFO would use DunningPilot: review overdue buckets across accounts, prioritize the highest-risk invoices, and create a consistent follow-up rhythm. The core benefit is a clearer, faster path to predictable cash collection.",
+"Here’s how this CFO would use DunningPilot: prioritize overdue balances by risk, monitor reply patterns, and apply consistent follow-up rules across clients. The core benefit is more predictable cash planning and clearer action queues."
 },
 {
 persona: "Bookkeeping Firm Owner",
-context: "Manages receivables workflows for several client ledgers at once.",
+context:
+"A bookkeeping firm managing AR workflows for several SMB clients.",
 narrative:
-"Here’s how this owner would use DunningPilot: standardize reminder rules per client, track communication history, and share clean status snapshots during monthly reporting. The key benefit is stronger client trust through consistent process visibility.",
-},
+"Here’s how this owner would use DunningPilot: set client-specific tone policies, run reminders from one workspace, and share timeline snapshots during monthly reporting. The strongest benefit is better client confidence through consistent process visibility."
+}
 ];
 
 const pricingTiers = [
 {
 name: "Starter",
 price: "€49/mo",
-annual: "€39/mo billed annually (planned)",
+annual: "Planned annual equivalent: €39/mo",
 description: "For solo operators and very small teams.",
 features: [
 "Up to 50 invoices/month",
 "1 workspace",
-"AI-generated reminder drafts",
-"Manual approval before send",
+"AI reminder drafts",
+"Manual approve-before-send workflow"
 ],
-highlight: false,
+popular: false
 },
 {
 name: "Pro",
 price: "€149/mo",
-annual: "€119/mo billed annually (planned)",
-description: "For agencies and finance teams with recurring volume.",
+annual: "Planned annual equivalent: €119/mo",
+description: "For agencies and finance teams with recurring overdue volume.",
 features: [
 "Up to 300 invoices/month",
 "3 workspaces",
-"Advanced reply-intent triage",
+"Advanced reply-intent sorting",
 "Approval-first automation rules",
-"Priority onboarding at launch",
+"Priority onboarding at launch"
 ],
-highlight: true,
+popular: true
 },
 {
 name: "Enterprise",
 price: "€399/mo",
-annual: "€319/mo billed annually (planned)",
-description: "For bookkeeping firms managing multiple client entities.",
+annual: "Planned annual equivalent: €319/mo",
+description: "For bookkeeping firms handling multi-client receivables.",
 features: [
 "Up to 2,000 invoices/month",
-"10 client workspaces",
+"10 workspaces",
 "Custom workflow controls",
-"White-label reporting (planned)",
+"White-label reporting (planned)"
 ],
-highlight: false,
-},
+popular: false
+}
 ];
 
-const faqs = [
+const faqItems = [
 {
 q: "When does DunningPilot launch?",
-a: "We are currently validating demand and onboarding in small early-access cohorts. Join the waitlist and we will notify you as soon as your cohort opens.",
+a:
+"We are onboarding early users in small cohorts. Join the waitlist and we will email you when your cohort is ready."
 },
 {
-q: "How is invoice and client data protected?",
-a: "The product is being built with secure infrastructure and role-based access in mind. We also plan encryption in transit and at rest through trusted providers.",
+q: "How secure is invoice data?",
+a:
+"Security is being designed into the product from day one, including encrypted transport and access controls. We will publish full security documentation as launch approaches."
 },
 {
-q: "Who owns the data I upload?",
-a: "You do. We are designing DunningPilot so you can export your data and request deletion at any time.",
+q: "Do we keep ownership of our data?",
+a:
+"Yes. You retain ownership of your data, and we are building export and deletion workflows into the platform."
 },
 {
-q: "Can I switch from QuickBooks or Xero?",
-a: "That is a core launch priority. We are planning direct integrations and CSV import so migration does not require rebuilding your process.",
+q: "Can we switch from QuickBooks or Xero?",
+a:
+"That is a launch priority. Planned integrations and CSV import are built to reduce migration friction."
 },
 {
-q: "How long will setup take?",
-a: "The onboarding flow is designed to take under 15 minutes for first use. You can start with a CSV and refine rules later.",
+q: "How long does setup take?",
+a:
+"The initial setup is designed to take under 15 minutes for most teams using CSV import. Planned direct integrations will reduce setup time further."
 },
 {
-q: "Will this auto-send emails without my approval?",
-a: "At launch, the default is approval-first controls. You decide the level of automation that is safe for your client relationships.",
+q: "Will emails send automatically without review?",
+a:
+"Default behavior is approval-first. You choose how much automation to enable, so your team keeps control of sensitive communication."
 },
 {
-q: "What support will early users get?",
-a: "Early cohorts will get direct founder support, implementation help, and rapid feedback loops while we finalize the product.",
+q: "What support will early users receive?",
+a:
+"Early cohorts get direct founder support, quick implementation help, and fast iteration cycles based on real workflow feedback."
 },
 {
-q: "What if my team only has occasional overdue invoices?",
-a: "DunningPilot is best for recurring AR workflows. During early access, we will help assess fit before recommending a plan.",
-},
+q: "What if we only have occasional overdue invoices?",
+a:
+"The product is best for recurring AR workflows. During onboarding, we’ll help confirm fit before recommending a pricing tier."
+}
 ];
 
 function WaitlistForm({
 source,
-buttonLabel = "Join the waitlist",
-onSuccess,
-className,
+buttonLabel,
+onJoined,
+className
 }: WaitlistFormProps) {
+const formId = useMemo(
+() => source.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+[source]
+);
+
 const [email, setEmail] = useState("");
+const [submitting, setSubmitting] = useState(false);
 const [status, setStatus] = useState<{
 type: "idle" | "success" | "error";
-message: string;
-}>({ type: "idle", message: "" });
-const [submitting, setSubmitting] = useState(false);
+text: string;
+}>({ type: "idle", text: "" });
 
-async function onSubmit(event: FormEvent<HTMLFormElement>) {
+async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 event.preventDefault();
+
 if (!email.trim()) {
-setStatus({
-type: "error",
-message: "Please enter a valid email address.",
-});
+setStatus({ type: "error", text: "Please enter a valid email address." });
 return;
 }
 
 setSubmitting(true);
-setStatus({ type: "idle", message: "" });
+setStatus({ type: "idle", text: "" });
 
 try {
 const response = await fetch("/api/subscribe", {
 method: "POST",
 headers: {
-"Content-Type": "application/json",
+"Content-Type": "application/json"
 },
 body: JSON.stringify({
 email,
-source,
-}),
+source
+})
 });
 
-const payload = (await response.json()) as {
-success?: boolean;
-message?: string;
-};
+const payload = (await response.json().catch(() => ({}))) as WaitlistApiResponse;
 
 if (!response.ok || !payload.success) {
-setStatus({
-type: "error",
-message:
+const message =
+payload.error?.message ??
 payload.message ??
-"We could not save your request right now. Please try again.",
-});
+"Could not save your request. Please try again.";
+setStatus({ type: "error", text: message });
 return;
 }
 
 setStatus({
 type: "success",
-message: payload.message ?? "You're on the waitlist!",
+text: payload.message ?? "You're on the waitlist!"
 });
 setEmail("");
-onSuccess?.();
+onJoined();
 } catch {
 setStatus({
 type: "error",
-message: "Network issue detected. Please try again in a moment.",
+text: "Network issue detected. Please try again in a moment."
 });
 } finally {
 setSubmitting(false);
@@ -280,105 +320,211 @@ setSubmitting(false);
 }
 
 return (
-<form
-onSubmit={onSubmit}
-className={className}
-aria-label="Waitlist signup form"
-noValidate
->
-{/* QA breakpoints: 375px stack, 768px balanced row, 1024px inline row */}
-<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-<label htmlFor={`email-${source}`} className="sr-only">
+<div className={`w-full max-w-[680px] ${className ?? ""}`}>
+<form onSubmit={handleSubmit} noValidate aria-label={`waitlist-form-${formId}`}>
+<div className="flex w-full flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3">
+<label htmlFor={`email-${formId}`} className="sr-only">
 Email address
 </label>
 <input
-id={`email-${source}`}
+id={`email-${formId}`}
 type="email"
 name="email"
-autoComplete="email"
-inputMode="email"
-required
 value={email}
 onChange={(event) => setEmail(event.target.value)}
 placeholder="you@company.com"
-className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-aria-describedby={`legal-${source}`}
-aria-label="Email address"
+autoComplete="email"
+required
+className="h-12 min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 sm:flex-1"
+aria-describedby={`legal-${formId}`}
 />
 <button
 type="submit"
 disabled={submitting}
-className="h-12 w-full rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+className="h-12 min-h-12 w-full shrink-0 rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
 aria-label={buttonLabel}
 >
-{submitting ? "Saving..." : buttonLabel}
+{submitting ? "Joining..." : buttonLabel}
 </button>
 </div>
 
-<p
-id={`legal-${source}`}
-className="mt-4 text-xs leading-relaxed text-slate-600"
->
-By joining, you agree to receive launch updates. See our{" "}
+<p id={`legal-${formId}`} className="mt-3 text-xs leading-5 text-slate-600">
+By joining, you agree to receive launch emails. Read our{" "}
 <Link
 href="/privacy"
-className="font-medium text-slate-800 underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+className="font-medium text-slate-800 underline underline-offset-2"
 >
 Privacy Policy
 </Link>{" "}
 and{" "}
 <Link
 href="/terms"
-className="font-medium text-slate-800 underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+className="font-medium text-slate-800 underline underline-offset-2"
 >
-Terms
+Terms of Service
 </Link>
 . You can unsubscribe anytime.
 </p>
 
+<div className="mt-2 min-h-5" aria-live="polite" role="status">
 {status.type !== "idle" && (
-<p
-className={`mt-4 text-sm ${
-status.type === "success" ? "text-emerald-700" : "text-rose-700"
-}`}
-role="status"
-aria-live="polite"
->
-{status.message}
+<p className={`text-sm ${status.type === "error" ? "text-rose-700" : "text-emerald-700"}`}>
+{status.text}
 </p>
 )}
+</div>
 </form>
+</div>
+);
+}
+
+function ExitIntentModal({ isOpen, onClose, onJoined }: ExitIntentModalProps) {
+const panelRef = useRef<HTMLDivElement>(null);
+const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+useEffect(() => {
+if (!isOpen) return;
+
+const previousActiveElement =
+typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+
+document.body.style.overflow = "hidden";
+closeButtonRef.current?.focus();
+
+const handleKeydown = (event: KeyboardEvent) => {
+if (event.key === "Escape") {
+event.preventDefault();
+onClose();
+return;
+}
+
+if (event.key !== "Tab") return;
+const panel = panelRef.current;
+if (!panel) return;
+
+const focusable = panel.querySelectorAll<HTMLElement>(
+'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+);
+
+if (focusable.length === 0) return;
+
+const first = focusable[0];
+const last = focusable[focusable.length - 1];
+const active = document.activeElement;
+
+if (event.shiftKey && active === first) {
+event.preventDefault();
+last.focus();
+} else if (!event.shiftKey && active === last) {
+event.preventDefault();
+first.focus();
+}
+};
+
+document.addEventListener("keydown", handleKeydown);
+return () => {
+document.body.style.overflow = "";
+document.removeEventListener("keydown", handleKeydown);
+previousActiveElement?.focus();
+};
+}, [isOpen, onClose]);
+
+return (
+<div
+aria-hidden={!isOpen}
+className={`fixed inset-0 z-50 transition ${isOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+>
+<button
+type="button"
+aria-label="Dismiss modal backdrop"
+onClick={onClose}
+className="absolute inset-0 h-full w-full bg-slate-900/50"
+/>
+<div className="flex min-h-full items-end justify-center p-4 sm:items-center">
+<div
+ref={panelRef}
+role="dialog"
+aria-modal="true"
+aria-labelledby="exit-intent-title"
+className={`relative w-full max-w-[560px] rounded-2xl bg-white p-6 shadow-2xl transition-transform ${
+isOpen ? "translate-y-0" : "translate-y-4"
+}`}
+onClick={(event) => event.stopPropagation()}
+>
+<div className="mb-4 flex items-start justify-between gap-4">
+<h3 id="exit-intent-title" className="font-heading text-2xl font-bold text-slate-900">
+Wait before you go
+</h3>
+<button
+ref={closeButtonRef}
+type="button"
+onClick={onClose}
+className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+aria-label="Close waitlist modal"
+>
+✕
+</button>
+</div>
+
+<p className="text-sm leading-6 text-slate-700">
+If invoice follow-up keeps draining your week, get notified when launch access opens.
+Mobile fallback trigger uses a 62% scroll-depth threshold.
+</p>
+
+<WaitlistForm
+source="exit-modal"
+buttonLabel="Get notified at launch"
+onJoined={onJoined}
+className="mt-5 max-w-[520px]"
+/>
+
+<button
+type="button"
+onClick={onClose}
+className="mt-1 text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
+>
+Not now
+</button>
+</div>
+</div>
+</div>
 );
 }
 
 export default function LandingPage() {
-const [showExitModal, setShowExitModal] = useState(false);
 const [joinedWaitlist, setJoinedWaitlist] = useState(false);
-const [dismissedExit, setDismissedExit] = useState(false);
+const [dismissedExitThisSession, setDismissedExitThisSession] = useState(false);
+const [showExitModal, setShowExitModal] = useState(false);
+const exitTriggerUsed = useRef(false);
 
 useEffect(() => {
-const joined = sessionStorage.getItem("dp_joined_waitlist") === "1";
+const joined = localStorage.getItem("dp_waitlist_joined") === "1";
 const dismissed = sessionStorage.getItem("dp_exit_dismissed") === "1";
 
 setJoinedWaitlist(joined);
-setDismissedExit(dismissed);
+setDismissedExitThisSession(dismissed);
+
+if (joined || dismissed) {
+exitTriggerUsed.current = true;
+}
 }, []);
 
 useEffect(() => {
+const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+if (nodes.length === 0) return;
+
 const observer = new IntersectionObserver(
-(entries) => {
+(entries, obs) => {
 entries.forEach((entry) => {
 if (!entry.isIntersecting) return;
 entry.target.classList.add("reveal-visible");
-observer.unobserve(entry.target);
+obs.unobserve(entry.target);
 });
 },
-{
-threshold: 0.12,
-}
+{ threshold: 0.12 }
 );
 
-document.querySelectorAll("[data-reveal]").forEach((node) => {
+nodes.forEach((node) => {
 node.classList.add("reveal");
 observer.observe(node);
 });
@@ -387,21 +533,29 @@ return () => observer.disconnect();
 }, []);
 
 useEffect(() => {
-if (joinedWaitlist || dismissedExit) return;
+if (joinedWaitlist || dismissedExitThisSession) return;
 
-const openModal = () => {
+const openExitModal = () => {
+if (exitTriggerUsed.current) return;
+exitTriggerUsed.current = true;
 setShowExitModal(true);
 };
 
 const onMouseOut = (event: MouseEvent) => {
 if (window.innerWidth < 1024) return;
-if (event.clientY <= 0) openModal();
+if (event.clientY <= 0 && !event.relatedTarget) {
+openExitModal();
+}
 };
 
 const onScroll = () => {
-const scrollBottom = window.scrollY + window.innerHeight;
-const scrollDepth = scrollBottom / document.documentElement.scrollHeight;
-if (scrollDepth >= 0.6) openModal();
+if (window.innerWidth >= 1024) return;
+const scrollDepth =
+(window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+
+if (scrollDepth >= MOBILE_EXIT_SCROLL_THRESHOLD) {
+openExitModal();
+}
 };
 
 window.addEventListener("mouseout", onMouseOut);
@@ -411,52 +565,35 @@ return () => {
 window.removeEventListener("mouseout", onMouseOut);
 window.removeEventListener("scroll", onScroll);
 };
-}, [joinedWaitlist, dismissedExit]);
+}, [joinedWaitlist, dismissedExitThisSession]);
 
-useEffect(() => {
-const onEsc = (event: KeyboardEvent) => {
-if (event.key === "Escape") {
-handleDismissExit();
-}
-};
-
-if (showExitModal) {
-document.body.style.overflow = "hidden";
-window.addEventListener("keydown", onEsc);
-} else {
-document.body.style.overflow = "";
-}
-
-return () => {
-document.body.style.overflow = "";
-window.removeEventListener("keydown", onEsc);
-};
-}, [showExitModal]);
-
-function handleWaitlistSuccess() {
+const handleJoinedWaitlist = () => {
 setJoinedWaitlist(true);
 setShowExitModal(false);
-sessionStorage.setItem("dp_joined_waitlist", "1");
-}
+localStorage.setItem("dp_waitlist_joined", "1");
+sessionStorage.setItem("dp_waitlist_joined", "1");
+exitTriggerUsed.current = true;
+};
 
-function handleDismissExit() {
-setDismissedExit(true);
+const handleDismissExit = () => {
 setShowExitModal(false);
+setDismissedExitThisSession(true);
 sessionStorage.setItem("dp_exit_dismissed", "1");
-}
+exitTriggerUsed.current = true;
+};
 
 return (
 <div className="min-h-screen bg-slate-50 text-slate-900">
-<header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+<header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
 <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-<a href="#hero" className="flex items-center gap-2" aria-label="Go home">
+<a href="#hero" className="flex items-center gap-2" aria-label="DunningPilot home">
 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
 DP
 </span>
-<span className="text-sm font-semibold tracking-tight">DunningPilot</span>
+<span className="font-heading text-sm font-semibold tracking-tight">DunningPilot</span>
 </a>
 
-<nav aria-label="Primary navigation" className="hidden items-center gap-6 md:flex">
+<nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
 <a href="#product" className="text-sm text-slate-700 hover:text-slate-900">
 Product
 </a>
@@ -469,10 +606,13 @@ FAQ
 <Link href="/blog" className="text-sm text-slate-700 hover:text-slate-900">
 Blog
 </Link>
+<a href="mailto:hello@dunningpilot.com" className="text-sm text-slate-700 hover:text-slate-900">
+Contact
+</a>
 </nav>
 
 <a
-href="#waitlist"
+href="#final-cta"
 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
 >
 Join waitlist
@@ -480,104 +620,102 @@ Join waitlist
 </div>
 </header>
 
-<main className="pb-28 sm:pb-0">
-<section id="hero" className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:py-20">
+<main className="pb-24 sm:pb-0">
+<section
+id="hero"
+className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:py-20"
+>
 <div data-reveal>
 <p className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-Launching soon for agencies and bookkeepers
+Launching soon — be one of the first teams in
 </p>
-<h1
-className="mt-5 text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl"
-style={{ fontFamily: "var(--font-display)" }}
->
+<h1 className="font-heading mt-5 text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
 Get paid faster without awkward invoice chasing
 </h1>
-<p className="mt-5 max-w-xl text-base leading-relaxed text-slate-700 sm:text-lg">
-DunningPilot is being built to handle polite, consistent invoice follow-ups so your team
-can reclaim time and protect client relationships. Join the waitlist to get early access
-when the first cohort opens.
+<p className="mt-5 max-w-xl text-base leading-7 text-slate-700 sm:text-lg">
+DunningPilot is being built for agencies and bookkeeping firms that are tired of
+manual follow-up work. Join the waitlist now and we’ll notify you when your early
+access cohort opens.
 </p>
+<p className="mt-3 text-sm font-medium text-slate-600">↓ Enter your email for early access.</p>
 
-<div className="mt-7 max-w-xl">
-<WaitlistForm source="hero" onSuccess={handleWaitlistSuccess} />
-</div>
+<WaitlistForm
+source="hero"
+buttonLabel="Join the waitlist"
+onJoined={handleJoinedWaitlist}
+className="mt-6"
+/>
 
-<p className="mt-4 flex items-center gap-2 text-sm text-slate-600">
-<span aria-hidden>↳</span> We will only email you about launch access and product updates.
+<p className="mt-2 text-xs text-slate-500">
+We only send launch updates and onboarding invites.
 </p>
 </div>
 
 <div data-reveal className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-<div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-<div className="flex items-center justify-between text-xs text-slate-500">
-<span>Hero visual concept</span>
-<span>Dashboard mockup</span>
-</div>
-<div className="mt-4 grid gap-3">
+<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+Hero visual description
+</p>
+<h2 className="font-heading mt-2 text-xl font-bold text-slate-900">
+Split-panel “AR command center” mockup
+</h2>
+<p className="mt-3 text-sm leading-6 text-slate-700">
+Left panel: overdue balance buckets and next-follow-up queue. Right panel: tone
+selector, approval queue, and timeline of sent reminders. Include a clear directional
+arrow from the dashboard preview toward the waitlist form.
+</p>
+<div className="mt-4 grid gap-3 sm:grid-cols-2">
 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-<p className="text-xs font-semibold text-amber-700">Overdue now</p>
-<p className="text-xl font-bold text-amber-900">€18,420</p>
+<p className="text-xs font-semibold text-amber-700">Overdue this month</p>
+<p className="text-2xl font-bold text-amber-900">€18,420</p>
 </div>
-<div className="rounded-lg border border-slate-200 bg-white p-3">
-<p className="text-xs font-semibold text-slate-600">Next follow-up queue</p>
-<ul className="mt-2 space-y-2 text-sm text-slate-700">
-<li>• 14-day reminder (friendly) — 12 invoices</li>
-<li>• 30-day reminder (firm) — 5 invoices</li>
-<li>• Reply triage — 7 client emails</li>
-</ul>
-</div>
-<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-Suggested visual: split-screen timeline + tone selector + “Join waitlist” CTA card.
-</div>
+<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+<p className="text-xs font-semibold text-emerald-700">Queued follow-ups</p>
+<p className="text-2xl font-bold text-emerald-900">23 drafts</p>
 </div>
 </div>
 </div>
 </section>
 
-<section data-reveal className="border-y border-slate-200 bg-white">
+<section id="credibility" className="border-y border-slate-200 bg-white">
 <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-<p className="text-center text-sm font-medium text-slate-700">
-Built for agencies and bookkeeping firms managing recurring B2B invoices.
+<p data-reveal className="text-center text-sm font-medium text-slate-700">
+Built for agencies and bookkeeping firms running recurring B2B invoices.
 </p>
-<div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-{integrations.map((name) => (
+<div data-reveal className="mt-4 flex flex-wrap items-center justify-center gap-2">
+{integrationBadges.map((badge) => (
 <span
-key={name}
+key={badge}
 className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
 >
-{name}
+{badge}
 </span>
 ))}
 </div>
-<p className="mt-4 text-center text-xs text-slate-500">
-Research input used in this validation: teams commonly report 3–8 hours/week on manual
-invoice follow-up.
+<p data-reveal className="mt-4 text-center text-xs text-slate-500">
+Research signal used in this validation: teams commonly report 3–8 hours/week spent
+on manual invoice follow-up.
 </p>
 </div>
 </section>
 
 <section id="product" className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-The daily AR pain most teams quietly accept
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+The pain this product is built to remove
 </h2>
 <p className="mt-3 text-slate-700">
-If you have ever delayed strategy work because invoices needed chasing, this is for you.
+If these feel familiar, DunningPilot was designed for your daily AR reality.
 </p>
 </div>
 
 <div className="grid gap-6 md:grid-cols-3">
 {painPoints.map((item) => (
-<article
-key={item.title}
-data-reveal
-className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
->
+<article key={item.title} data-reveal className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 <p className="text-2xl" aria-hidden>
 {item.icon}
 </p>
-<h3 className="mt-3 text-xl font-semibold">{item.title}</h3>
-<p className="mt-3 text-sm leading-relaxed text-slate-700">{item.body}</p>
+<h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
+<p className="mt-3 text-sm leading-6 text-slate-700">{item.description}</p>
 </article>
 ))}
 </div>
@@ -586,28 +724,24 @@ className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
 <section id="solution" className="bg-white py-14">
 <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-Before vs after, without false promises
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+Before vs after (design intent)
 </h2>
 <p className="mt-3 text-slate-700">
-We are pre-launch, so this section is about design intent: what DunningPilot is built to do.
+We’re pre-launch, so this compares your current workflow to what DunningPilot is
+designed to enable.
 </p>
 </div>
 
 <div className="space-y-4">
-{beforeAfter.map((row, index) => (
-<div
-key={row.before}
-data-reveal
-className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-5 lg:grid-cols-2"
->
-<p className="text-sm text-rose-800">
-<span className="font-semibold">Before:</span> {row.before.replace("Before: ", "")}
+{comparisons.map((row) => (
+<div key={row.before} data-reveal className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-5 lg:grid-cols-2">
+<p className="text-sm leading-6 text-rose-800">
+<strong>Before:</strong> {row.before.replace("Before: ", "")}
 </p>
-<p className="text-sm text-emerald-800">
-<span className="font-semibold">After:</span> {row.after.replace("After: ", "")}
+<p className="text-sm leading-6 text-emerald-800">
+<strong>After:</strong> {row.after.replace("After: ", "")}
 </p>
-<p className="sr-only">Comparison row {index + 1}</p>
 </div>
 ))}
 </div>
@@ -616,26 +750,22 @@ className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-5 lg:grid
 
 <section id="features" className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-Features built for outcomes, not feature bloat
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+Feature deep-dive
 </h2>
 <p className="mt-3 text-slate-700">
-Every capability is designed so you can collect faster with less manual pressure.
+Every feature is built around one goal: reduce AR effort while improving follow-up consistency.
 </p>
 </div>
 
 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 {features.map((feature) => (
-<article
-key={feature.title}
-data-reveal
-className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
->
+<article key={feature.title} data-reveal className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 <p className="text-2xl" aria-hidden>
 {feature.icon}
 </p>
 <h3 className="mt-3 text-lg font-semibold">{feature.title}</h3>
-<p className="mt-3 text-sm leading-relaxed text-slate-700">{feature.body}</p>
+<p className="mt-3 text-sm leading-6 text-slate-700">{feature.body}</p>
 </article>
 ))}
 </div>
@@ -644,25 +774,21 @@ className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
 <section id="how-it-works" className="bg-white py-14">
 <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
 How it works in under 60 seconds
 </h2>
 <p className="mt-3 text-slate-700">
-Quick setup is non-negotiable for busy teams. This flow is designed to feel effortless.
+Setup is designed to be fast enough for busy teams.
 </p>
 </div>
 
 <div className="grid gap-6 md:grid-cols-3">
-{howItWorks.map((step) => (
-<article
-key={step.step}
-data-reveal
-className="rounded-2xl border border-slate-200 bg-slate-50 p-6"
->
+{workflowSteps.map((step) => (
+<article key={step.step} data-reveal className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
 <p className="text-sm font-semibold text-emerald-700">Step {step.step}</p>
 <h3 className="mt-2 text-xl font-semibold">{step.title}</h3>
-<p className="mt-3 text-sm text-slate-700">{step.body}</p>
-<p className="mt-3 text-xs text-slate-500">Visual: {step.visual}</p>
+<p className="mt-3 text-sm leading-6 text-slate-700">{step.detail}</p>
+<p className="mt-3 text-xs text-slate-500">Visual suggestion: {step.visual}</p>
 </article>
 ))}
 </div>
@@ -671,24 +797,20 @@ className="rounded-2xl border border-slate-200 bg-slate-50 p-6"
 
 <section id="use-cases" className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-Real-world use cases by role
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+Use cases by persona
 </h2>
 <p className="mt-3 text-slate-700">
-No fake testimonials. Just practical scenarios based on who this is being built for.
+No fake testimonials. Just practical day-to-day scenarios.
 </p>
 </div>
 
 <div className="space-y-4">
 {useCases.map((item) => (
-<article
-key={item.persona}
-data-reveal
-className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
->
+<article key={item.persona} data-reveal className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 <h3 className="text-lg font-semibold">{item.persona}</h3>
 <p className="mt-2 text-sm text-slate-600">{item.context}</p>
-<p className="mt-3 text-sm leading-relaxed text-slate-700">{item.narrative}</p>
+<p className="mt-3 text-sm leading-6 text-slate-700">{item.narrative}</p>
 </article>
 ))}
 </div>
@@ -697,12 +819,11 @@ className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
 <section id="pricing" className="bg-white py-14">
 <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
 <div data-reveal className="mb-10 max-w-3xl">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-Launch Pricing (Planned)
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+Planned Pricing
 </h2>
 <p className="mt-3 text-slate-700">
-Transparent pricing is part of the product philosophy. Annual plans are planned with
-approximately 20% savings.
+Transparent launch pricing with an annual discount planned at roughly 20%.
 </p>
 </div>
 
@@ -712,12 +833,12 @@ approximately 20% savings.
 key={tier.name}
 data-reveal
 className={`relative rounded-2xl border p-6 ${
-tier.highlight
+tier.popular
 ? "border-emerald-500 bg-emerald-50 shadow-md"
 : "border-slate-200 bg-slate-50"
 }`}
 >
-{tier.highlight && (
+{tier.popular && (
 <p className="absolute -top-3 left-6 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
 Most Popular
 </p>
@@ -732,7 +853,7 @@ Most Popular
 ))}
 </ul>
 <a
-href="#waitlist"
+href="#final-cta"
 className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
 >
 Join waitlist
@@ -742,19 +863,19 @@ Join waitlist
 </div>
 
 <div data-reveal className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6">
-<h3 className="text-lg font-semibold">Pricing FAQs</h3>
-<div className="mt-4 space-y-4 text-sm text-slate-700">
+<h3 className="text-lg font-semibold">Pricing FAQ</h3>
+<div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
 <p>
-<span className="font-semibold">When will this launch?</span> We will onboard early users
-in small cohorts once core workflow reliability is ready.
+<strong>When will this launch?</strong> Early cohorts will roll out after core
+workflow reliability checks are complete.
 </p>
 <p>
-<span className="font-semibold">Will there be a free trial?</span> We plan to offer an
-early-access evaluation window before full billing starts.
+<strong>Will there be a free trial?</strong> We plan to provide an early-access
+evaluation period before full billing begins.
 </p>
 <p>
-<span className="font-semibold">Can I cancel anytime?</span> Yes. Planned monthly tiers are
-designed for flexibility with no hidden lock-in.
+<strong>Can I cancel anytime?</strong> Yes. Planned monthly tiers are built for
+flexibility with no hidden lock-in.
 </p>
 </div>
 </div>
@@ -763,47 +884,43 @@ designed for flexibility with no hidden lock-in.
 
 <section id="faq" className="mx-auto w-full max-w-4xl px-4 py-14 sm:px-6">
 <div data-reveal className="mb-10">
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
 Frequently asked questions
 </h2>
 <p className="mt-3 text-slate-700">
-Built from common objections in AR tools and finance workflow software reviews.
+Answers built from common objections seen in AR software reviews and early interviews.
 </p>
 </div>
 
 <div className="space-y-3">
-{faqs.map((item) => (
-<details
-key={item.q}
-data-reveal
-className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
->
+{faqItems.map((item) => (
+<details key={item.q} data-reveal className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
 <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
 {item.q}
 </summary>
-<p className="mt-3 text-sm leading-relaxed text-slate-700">{item.a}</p>
+<p className="mt-3 text-sm leading-6 text-slate-700">{item.a}</p>
 </details>
 ))}
 </div>
 </section>
 
-<section id="waitlist" className="bg-emerald-900 py-16 text-white">
+<section id="final-cta" className="bg-emerald-900 py-16 text-white">
 <div className="mx-auto w-full max-w-4xl px-4 text-center sm:px-6">
 <div data-reveal>
-<h2 className="text-3xl font-bold tracking-tight sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
-Early-access cohorts open in small batches
+<h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+Early-access cohorts are intentionally small
 </h2>
 <p className="mx-auto mt-4 max-w-2xl text-emerald-100">
-If late invoices keep stealing focus, join the waitlist now. We are building this for
-people exactly like you: teams that need consistent collections without awkward client friction.
+If late invoices keep interrupting your week, join now and secure a spot in an early
+onboarding batch. We’re building this for teams exactly like yours.
 </p>
 </div>
 
-<div data-reveal className="mx-auto mt-8 max-w-xl rounded-2xl bg-white p-5 text-slate-900 sm:p-6">
+<div data-reveal className="mx-auto mt-8 max-w-[720px] rounded-2xl bg-white p-5 text-left text-slate-900 sm:p-6">
 <WaitlistForm
 source="final-cta"
 buttonLabel="Get early access"
-onSuccess={handleWaitlistSuccess}
+onJoined={handleJoinedWaitlist}
 />
 </div>
 </div>
@@ -817,10 +934,11 @@ onSuccess={handleWaitlistSuccess}
 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white">
 DP
 </span>
-<p className="font-semibold">DunningPilot</p>
+<p className="font-heading font-semibold">DunningPilot</p>
 </div>
-<p className="mt-3 text-sm text-slate-600">
-Pre-launch software designed to help service teams follow up on invoices consistently and professionally.
+<p className="mt-3 text-sm leading-6 text-slate-600">
+Pre-launch software designed to help service teams run consistent invoice follow-up
+workflows with less manual overhead.
 </p>
 </div>
 
@@ -874,64 +992,28 @@ Terms of Service
 </div>
 </div>
 </div>
+
 <div className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
 © {new Date().getFullYear()} DunningPilot. All rights reserved.
 </div>
 </footer>
 
-{!joinedWaitlist && !showExitModal && (
+{!joinedWaitlist && (
 <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white p-3 shadow-[0_-6px_20px_rgba(15,23,42,0.08)] sm:hidden">
 <a
-href="#waitlist"
-className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+href="#final-cta"
+className="inline-flex h-12 w-full items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
 >
 Join the waitlist
 </a>
 </div>
 )}
 
-{showExitModal && !joinedWaitlist && (
-<div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 sm:items-center">
-<div
-role="dialog"
-aria-modal="true"
-aria-labelledby="exit-title"
-className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
->
-<div className="flex items-start justify-between gap-4">
-<h2 id="exit-title" className="text-xl font-bold text-slate-900">
-Before you go: get launch access first
-</h2>
-<button
-type="button"
-onClick={handleDismissExit}
-className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-aria-label="Close waitlist modal"
->
-✕
-</button>
-</div>
-<p className="mt-3 text-sm text-slate-700">
-If invoice follow-up keeps draining your week, join the waitlist and we will notify you when
-your early-access cohort opens.
-</p>
-<div className="mt-5">
-<WaitlistForm
-source="exit-intent"
-buttonLabel="Notify me at launch"
-onSuccess={handleWaitlistSuccess}
+<ExitIntentModal
+isOpen={showExitModal && !joinedWaitlist}
+onClose={handleDismissExit}
+onJoined={handleJoinedWaitlist}
 />
-</div>
-<button
-type="button"
-onClick={handleDismissExit}
-className="mt-4 text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
->
-Not now
-</button>
-</div>
-</div>
-)}
 </div>
 );
 }
