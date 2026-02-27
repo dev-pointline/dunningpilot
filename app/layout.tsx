@@ -4,63 +4,64 @@ import "./globals.css";
 
 const inter = Inter({
 subsets: ["latin"],
-variable: "--font-inter"
+variable: "--font-inter",
 });
 
 const manrope = Manrope({
 subsets: ["latin"],
-variable: "--font-manrope"
+variable: "--font-manrope",
 });
 
 const siteUrl = "https://dunningpilot.com";
 
 export const metadata: Metadata = {
 metadataBase: new URL(siteUrl),
-title: "Invoice Follow-Up Software | DunningPilot Waitlist",
+title: "Invoice Follow-Up Automation | DunningPilot Waitlist",
 description:
-"Automate polite invoice follow-ups and protect client relationships. DunningPilot is launching soon—join the waitlist for early access.",
+"Automate polite invoice follow-ups for agencies and bookkeepers. Launching soon—join the waitlist for early access.",
 keywords: [
-"invoice follow-up software",
+"invoice follow-up automation",
 "accounts receivable automation for agencies",
-"dunning automation",
-"late invoice reminder tool",
-"AR collections software for small business"
+"polite payment reminder software",
+"dunning management for bookkeepers",
+"reduce late invoice payments",
 ],
+alternates: {
+canonical: "/",
+},
 openGraph: {
-title: "DunningPilot | Invoice Follow-Up Software for Agencies",
+title: "DunningPilot | Get Paid Faster Without Awkward Chasing",
 description:
-"Stop awkward payment chasing. DunningPilot is built to help agencies and bookkeepers send smarter invoice follow-ups—join the waitlist.",
-type: "website",
+"A pre-launch tool designed to help agencies and bookkeepers chase overdue invoices with less manual work. Join the waitlist.",
 url: siteUrl,
 siteName: "DunningPilot",
+locale: "en_GB",
+type: "website",
 images: [
 {
 url: "/og-image.png",
 width: 1200,
 height: 630,
-alt: "DunningPilot dashboard preview with smart reminder timeline and waitlist CTA"
-}
-]
+alt: "DunningPilot dashboard preview with overdue invoices, follow-up timeline, and waitlist CTA.",
+},
+],
 },
 twitter: {
 card: "summary_large_image",
-title: "DunningPilot | Invoice Follow-Up Software Waitlist",
+title: "DunningPilot | Invoice Follow-Up Automation Waitlist",
 description:
-"Built for agencies and bookkeeping teams that want faster payments without awkward chasing. Join early access.",
-images: ["/og-image.png"]
+"Launching soon for agencies and bookkeepers. Join the waitlist for early access.",
+images: ["/og-image.png"],
 },
 icons: {
-icon: "/favicon.ico"
+icon: "/favicon.ico",
 },
-alternates: {
-canonical: "/"
-}
 };
 
 export const viewport: Viewport = {
 width: "device-width",
 initialScale: 1,
-themeColor: "#10b981"
+themeColor: "#ffffff",
 };
 
 const organizationSchema = {
@@ -68,15 +69,13 @@ const organizationSchema = {
 "@type": "Organization",
 name: "DunningPilot",
 url: siteUrl,
+logo: `${siteUrl}/logo.png`,
 description:
-"DunningPilot is a pre-launch accounts receivable workflow product built for agencies and bookkeeping teams.",
-contactPoint: [
-{
-"@type": "ContactPoint",
-contactType: "Customer Support",
-email: "hello@dunningpilot.com"
-}
-]
+"DunningPilot is a pre-launch workflow tool designed to help agencies and bookkeeping firms manage invoice follow-ups with less manual effort.",
+sameAs: [
+"https://x.com/dunningpilot",
+"https://www.producthunt.com/products/dunningpilot",
+],
 };
 
 const faqSchema = {
@@ -88,57 +87,64 @@ mainEntity: [
 name: "When does DunningPilot launch?",
 acceptedAnswer: {
 "@type": "Answer",
-text: "We are onboarding early-access users in controlled waves. Join the waitlist and we will email your invite window as soon as your segment opens."
-}
+text: "We are onboarding waitlist members in small cohorts. Join the waitlist and we will email you as soon as your cohort opens.",
+},
 },
 {
 "@type": "Question",
-name: "Is this replacing QuickBooks or Xero?",
+name: "Will DunningPilot send emails automatically?",
 acceptedAnswer: {
 "@type": "Answer",
-text: "No. DunningPilot is designed as a focused follow-up layer that works with your accounting workflow, so you keep your current ledger and reporting setup."
-}
+text: "The product is being designed with approval controls and tone guardrails so teams can choose exactly when reminders are sent.",
+},
 },
 {
 "@type": "Question",
-name: "How long does setup take?",
+name: "Do I keep ownership of my invoice data?",
 acceptedAnswer: {
 "@type": "Answer",
-text: "The onboarding flow is being built for a sub-15-minute first run: upload invoice data, choose tone guardrails, and review your first follow-up sequence."
-}
+text: "Yes. Your data remains yours, and the platform is being built with export and deletion workflows.",
+},
 },
 {
 "@type": "Question",
-name: "Who owns the data?",
+name: "Can I switch from QuickBooks or Xero?",
 acceptedAnswer: {
 "@type": "Answer",
-text: "You retain ownership of your invoice and customer data. We process it only to provide the service and you can request deletion at any time."
-}
-}
-]
+text: "That is the plan. We are building import and planned integrations so you can start without rebuilding your workflow.",
+},
+},
+],
 };
 
 export default function RootLayout({
-children
-}: Readonly<{ children: React.ReactNode }>) {
+children,
+}: Readonly<{
+children: React.ReactNode;
+}>) {
+const jsonLd = [organizationSchema, faqSchema];
+
 return (
 <html lang="en" className={`${inter.variable} ${manrope.variable}`}>
-<body className="font-[var(--font-inter)] antialiased">
-<a
-href="#main-content"
-className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-emerald-600 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
+<head>
+<link rel="icon" href="/favicon.ico" />
+{jsonLd.map((schema, index) => (
+<script
+key={`jsonld-${index}`}
+type="application/ld+json"
+dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+/>
+))}
+</head>
+<body
+className="font-[var(--font-inter)] antialiased"
+style={
+{
+"--font-display": "var(--font-manrope)",
+} as React.CSSProperties
+}
 >
-Skip to content
-</a>
 {children}
-<script
-type="application/ld+json"
-dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-/>
-<script
-type="application/ld+json"
-dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-/>
 </body>
 </html>
 );
